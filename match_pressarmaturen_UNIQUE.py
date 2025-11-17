@@ -136,12 +136,23 @@ def calculate_match_score(heizmann_item, balflex_item):
     # If both missing, continue (but no points)
 
     # === CRITERION 2: SERIES L/S (MANDATORY - 20 points) ===
+    # RETO CONFIRMED (Nov 17, 2025):
+    # - Heizmann "BEL/BES" → BOTH → compatible with Light OR Heavy
+    # - Balflex only has Light version
     if heizmann_series and balflex_series:
-        if heizmann_series == balflex_series:
+        # Check if Heizmann product is compatible with BOTH series
+        if heizmann_series == 'BOTH':
+            # BOTH means compatible with Light (L) OR Heavy (S)
+            # Reto confirmed: "BEL/BES" products can match with Light OR Heavy
+            score += 20
+            reasons.append(f"Series: BOTH → {balflex_series}")
+        elif heizmann_series == balflex_series:
+            # Exact match (L→L or S→S)
             score += 20
             reasons.append(f"Series: {heizmann_series}")
         else:
             # SERIES MISMATCH - REJECT!
+            # Example: Heizmann=S but Balflex=L → Different pressure ratings!
             return 0, [], [f"SERIES MISMATCH: {heizmann_series} (pressure) ≠ {balflex_series} (pressure)"]
     elif heizmann_series or balflex_series:
         # One has series, other doesn't - allow but warn

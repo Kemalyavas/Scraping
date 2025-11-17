@@ -169,20 +169,49 @@ def extract_series_balflex_from_product_type(product):
 
 def extract_series_heizmann(product):
     """
-    Extract L or S series from Heizmann model/identification
+    Extract L, S, or BOTH series from Heizmann model/identification
+
+    RETO CONFIRMED (Nov 17, 2025):
+    - Heizmann has 3 cases: "BEL/BES" (BOTH), "BEL" (Light only), "BES" (Heavy only)
+    - Balflex only has Light version
+    - When Heizmann says "BEL/BES" → compatible with BOTH Light AND Heavy
+    - Example: 480301 has "BEL/BES 90° DN6" → should match with Balflex Light
 
     Patterns:
-    - BEL = Light (leicht)
-    - BES = Heavy (schwer)
-    - DKOL, MLOL, MSOL, etc. = Light
-    - DKOS, MLOS, MSOS, etc. = Heavy
+    - BEL/BES in identification → BOTH (compatible with Light AND Heavy!)
+    - BEL only → Light (leicht)
+    - BES only → Heavy (schwer)
+    - DKOL, MLOL, MSOL, etc. → Light
+    - DKOS, MLOS, MSOS, etc. → Heavy
     """
     model = product.get('model', '') or ''
     identification = product.get('identification', '') or ''
+    connection_type = product.get('connection_type', '') or ''
 
-    combined = f"{model} {identification}".upper()
+    combined = f"{model} {identification} {connection_type}".upper()
+    ident_upper = identification.upper()
 
-    # Priority 1: Check model suffix (most reliable)
+    # PRIORITY 0: Check if product is compatible with BOTH series (HIGHEST PRIORITY!)
+    # Reto confirmed: "BEL/BES" in identification means BOTH Light AND Heavy
+    if 'BEL/BES' in ident_upper or 'BES/BEL' in ident_upper:
+        return 'BOTH', 'identification_BEL_BES'
+
+    # Also check for text descriptions
+    if ('LEICHT UND SCHWER' in combined or 'SCHWER UND LEICHT' in combined or
+        'LIGHT AND HEAVY' in combined or 'HEAVY AND LIGHT' in combined):
+        return 'BOTH', 'description_both_series'
+
+    # Priority 1: Check identification for specific BEL or BES (without the slash)
+    # This is more reliable than model suffix for single series
+    # Look for "BEL " or "BEL°" (with space or degree after to avoid matching BEL/BES)
+    if re.search(r'\bBEL\s', ident_upper) or re.search(r'\bBEL°', ident_upper) or ident_upper.endswith('BEL'):
+        return 'L', 'identification_BEL_only'
+
+    # Look for "BES " or "BES°" or ends with "BES"
+    if re.search(r'\bBES\s', ident_upper) or re.search(r'\bBES°', ident_upper) or ident_upper.endswith('BES'):
+        return 'S', 'identification_BES_only'
+
+    # Priority 2: Check model suffix
     # Models ending with angle + series: "90L", "90S", "45L", "45S", "SL", "SS", etc.
     # Examples: "MOSE 90L", "MOSE 90S", "MLOF 90L", "MSOF 90S"
     model_upper = model.upper().strip()
@@ -193,7 +222,7 @@ def extract_series_heizmann(product):
     elif re.search(r'\d+L$', model_upper) or model_upper.endswith('SL'):
         return 'L', 'model_suffix_L'
 
-    # Priority 2: Look for model code patterns: DKOL, DKOS, MLOL, MLOS, etc.
+    # Priority 3: Look for model code patterns: DKOL, DKOS, MLOL, MLOS, etc.
     patterns = [
         r'DKO([LS])',  # DKOL, DKOS
         r'MLO([LS])',  # MLOL, MLOS
