@@ -168,13 +168,32 @@ def extract_series_balflex_from_product_type(product):
     return None, None
 
 def extract_series_heizmann(product):
-    """Extract L or S series from Heizmann model/identification"""
-    model = product.get('model', '')
-    identification = product.get('identification', '')
+    """
+    Extract L or S series from Heizmann model/identification
+
+    Patterns:
+    - BEL = Light (leicht)
+    - BES = Heavy (schwer)
+    - DKOL, MLOL, MSOL, etc. = Light
+    - DKOS, MLOS, MSOS, etc. = Heavy
+    """
+    model = product.get('model', '') or ''
+    identification = product.get('identification', '') or ''
 
     combined = f"{model} {identification}".upper()
 
-    # Look for patterns: DKOL, DKOS, MLOL, MLOS, MSOL, MSOS, etc.
+    # Priority 1: Check model suffix (most reliable)
+    # Models ending with angle + series: "90L", "90S", "45L", "45S", "SL", "SS", etc.
+    # Examples: "MOSE 90L", "MOSE 90S", "MLOF 90L", "MSOF 90S"
+    model_upper = model.upper().strip()
+
+    # Check for patterns like "90S", "90L", "45S", "45L" at the end
+    if re.search(r'\d+S$', model_upper) or model_upper.endswith('SS'):
+        return 'S', 'model_suffix_S'
+    elif re.search(r'\d+L$', model_upper) or model_upper.endswith('SL'):
+        return 'L', 'model_suffix_L'
+
+    # Priority 2: Look for model code patterns: DKOL, DKOS, MLOL, MLOS, etc.
     patterns = [
         r'DKO([LS])',  # DKOL, DKOS
         r'MLO([LS])',  # MLOL, MLOS
